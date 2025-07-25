@@ -1,10 +1,11 @@
 ﻿using System;
+using System.Runtime.InteropServices;
 using System.Windows;
 using System.Windows.Controls;
+using System.Windows.Forms; // Per monitor principale
+using System.Windows.Media;
 using System.Windows.Media.Animation;
 using System.Windows.Media.Imaging;
-using System.Windows.Forms; // Per monitor principale
-using System.Runtime.InteropServices;
 
 namespace WinMicMuteChecker
 {
@@ -63,6 +64,7 @@ namespace WinMicMuteChecker
 
         public void UpdateOverlay()
         {
+            RenderOptions.SetBitmapScalingMode(image, BitmapScalingMode.HighQuality);
             image.Source = new BitmapImage(new Uri($"Assets/no_mic_{SettingsManager.Color.ToLower()}.png", UriKind.Relative));
             PositionWindow(SettingsManager.Position);
             Opacity = SettingsManager.Opacity;
