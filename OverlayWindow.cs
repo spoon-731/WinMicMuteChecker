@@ -1,4 +1,5 @@
 ﻿using System;
+using System.Collections.Generic;
 using System.Runtime.InteropServices;
 using System.Windows;
 using System.Windows.Controls;
@@ -25,6 +26,8 @@ namespace WinMicMuteChecker
 
     public class OverlayWindow : Window
     {
+        private static Dictionary<string, BitmapImage> _imageCache = new Dictionary<string, BitmapImage>();
+
         private Image image = new Image();
         private const int margin = 10; // distanza dal bordo
 
@@ -64,8 +67,11 @@ namespace WinMicMuteChecker
 
         public void UpdateOverlay()
         {
+            var imagePath = $"Assets/no_mic_{SettingsManager.Color.ToLower()}.png";
+            //image.Source = new BitmapImage(new Uri(imagePath, UriKind.Relative));
+            image.Source = GetCachedImage(imagePath);
+
             RenderOptions.SetBitmapScalingMode(image, BitmapScalingMode.HighQuality);
-            image.Source = new BitmapImage(new Uri($"Assets/no_mic_{SettingsManager.Color.ToLower()}.png", UriKind.Relative));
             PositionWindow(SettingsManager.Position);
             Opacity = SettingsManager.Opacity;
         }
@@ -138,5 +144,22 @@ namespace WinMicMuteChecker
                     break;
             }
         }
+
+        private BitmapImage GetCachedImage(string imagePath)
+        {
+            if (_imageCache.ContainsKey(imagePath))
+                return _imageCache[imagePath];
+
+            var bmp = new BitmapImage();
+            bmp.BeginInit();
+            bmp.CacheOption = BitmapCacheOption.OnLoad; // carica tutto in RAM
+            bmp.UriSource = new Uri(imagePath, UriKind.Relative);
+            bmp.EndInit();
+            bmp.Freeze(); // thread-safe, più leggero
+
+            _imageCache[imagePath] = bmp;
+            return bmp;
+        }
+
     }
 }

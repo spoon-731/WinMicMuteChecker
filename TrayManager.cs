@@ -1,8 +1,6 @@
 ﻿using Hardcodet.Wpf.TaskbarNotification;
-using Microsoft.Win32;
 using System;
 using System.Drawing;
-using System.Windows;
 using System.Windows.Controls;
 
 namespace WinMicMuteChecker
