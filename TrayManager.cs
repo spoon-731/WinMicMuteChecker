@@ -1,25 +1,29 @@
 ﻿using Hardcodet.Wpf.TaskbarNotification;
 using System;
+using System.Collections.Generic;
 using System.Drawing;
 using System.Windows.Controls;
+using System.Windows.Forms;
+using ContextMenu = System.Windows.Controls.ContextMenu;
+using MenuItem = System.Windows.Controls.MenuItem;
 
 namespace WinMicMuteChecker
 {
     public class TrayManager
     {
-        private TaskbarIcon trayIcon;
-        private OverlayWindow overlay;
-        private HotkeyManager _hotkeyManager;
+        private readonly TaskbarIcon trayIcon;
+        private readonly OverlayWindow overlay;
+        private readonly LowLevelHotkeyManager _hotkeyManager;
 
-        public TrayManager(OverlayWindow overlayWindow, HotkeyManager hotkeyManager)
+        public TrayManager(OverlayWindow overlayWindow, LowLevelHotkeyManager hotkeyManager)
         {
             overlay = overlayWindow;
             trayIcon = new TaskbarIcon
             {
                 Icon = new Icon("mic.ico"),
-                ToolTipText = "WinMicMuteChecker"
+                ToolTipText = "WinMicMuteChecker",
+                ContextMenu = BuildContextMenu()
             };
-            trayIcon.ContextMenu = BuildContextMenu();
             _hotkeyManager = hotkeyManager;
         }
 
@@ -138,12 +142,27 @@ namespace WinMicMuteChecker
             var dialog = new HotkeyDialog();
             if (dialog.ShowDialog() == true)
             {
-                SettingsManager.Hotkey = dialog.mainKey;
-                SettingsManager.Modifier = (uint)dialog.currentModifiers;
-                SettingsManager.SaveSettings();
+                // 1. Crea la nuova combinazione partendo da mainKey e currentModifiers
+                var keys = new List<Keys>();
 
-                _hotkeyManager?.Unregister();
-                _hotkeyManager?.RegisterHotkey((uint)dialog.currentModifiers, dialog.mainKey);
+                if (((uint)dialog.currentModifiers & SettingsManager.MOD_WIN) != 0)
+                    keys.Add(Keys.LWin);
+                if (((uint)dialog.currentModifiers & 0x0001) != 0)
+                    keys.Add(Keys.Menu); // Alt
+                if (((uint)dialog.currentModifiers & 0x0002) != 0)
+                    keys.Add(Keys.ControlKey);
+                if (((uint)dialog.currentModifiers & SettingsManager.MOD_SHIFT) != 0)
+                    keys.Add(Keys.ShiftKey);
+
+                keys.Add(dialog.mainKey); // aggiungi il tasto principale
+
+                var newCombo = new HotkeyCombination(keys.ToArray());
+
+                // 2. Salva nei settings
+                SettingsManager.SaveHotkeyCombination(newCombo);
+
+                // 3. Aggiorna il gestore hook
+                _hotkeyManager?.UpdateHotkey(newCombo);
             }
         }
     }

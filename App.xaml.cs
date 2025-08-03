@@ -20,10 +20,11 @@ namespace WinMicMuteChecker
             var micService = new MicrophoneService(overlay);
 
             // Avvia listener hotkey toggle mute
-            var hotkeyManager = new HotkeyManager(overlay, () => micService.ToggleMute());
+            //var hotkeyManager = new HotkeyManager(overlay, () => micService.ToggleMute());
+            var lowLevelHotkeyManager = new LowLevelHotkeyManager(() => micService.ToggleMute(), SettingsManager.LoadHotkeyCombination());
 
             // Avvia icona nel system tray
-            var trayManager = new TrayManager(overlay, hotkeyManager);
+            var trayManager = new TrayManager(overlay, lowLevelHotkeyManager);
         }
     }
 }

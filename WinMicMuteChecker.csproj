@@ -111,9 +111,11 @@
       <Generator>MSBuild:Compile</Generator>
       <SubType>Designer</SubType>
     </ApplicationDefinition>
+    <Compile Include="HotkeyCombination.cs" />
     <Compile Include="HotkeyDialog.cs" />
     <Compile Include="HotkeyManager.cs" />
     <Compile Include="KeyConverter.cs" />
+    <Compile Include="LowLevelHotkeyManager.cs" />
     <Compile Include="SettingsManager.cs" />
     <Compile Include="TrayManager.cs" />
     <Compile Include="App.xaml.cs">

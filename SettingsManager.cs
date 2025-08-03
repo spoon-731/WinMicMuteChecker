@@ -1,9 +1,10 @@
 ﻿using Microsoft.Win32;
 using System;
+using System.Collections.Generic;
 using System.Globalization;
 using System.IO;
-using Keys = System.Windows.Forms.Keys;
 using System.Xml;
+using Keys = System.Windows.Forms.Keys;
 
 namespace WinMicMuteChecker
 {
@@ -57,8 +58,6 @@ namespace WinMicMuteChecker
                 Console.WriteLine("Errore nel caricamento delle impostazioni: " + ex.Message);
                 SaveSettings(); // ripristina valori predefiniti
             }
-
-            UpdateStartupRegistration();
         }
 
         public static void SaveSettings()
@@ -86,8 +85,6 @@ namespace WinMicMuteChecker
             {
                 Console.WriteLine("Errore nel salvataggio delle impostazioni: " + ex.Message);
             }
-
-            UpdateStartupRegistration();
         }
 
         private static XmlElement CreateElement(XmlDocument doc, string name, string value)
@@ -97,22 +94,60 @@ namespace WinMicMuteChecker
             return element;
         }
 
-        private static void UpdateStartupRegistration()
+        public static HotkeyCombination LoadHotkeyCombination()
         {
-            RegistryKey rk = Registry.CurrentUser.OpenSubKey(@"Software\Microsoft\Windows\CurrentVersion\Run", true);
-            if (rk == null) return;
+            var keys = new List<Keys>();
 
-            string exePath = System.Reflection.Assembly.GetExecutingAssembly().Location;
-            if (RunAtStartup)
+            if ((Modifier & MOD_WIN) != 0)
+                keys.Add(Keys.LWin);
+
+            if ((Modifier & 0x0001) != 0) // MOD_ALT
+                keys.Add(Keys.Menu); // Alt
+
+            if ((Modifier & 0x0002) != 0) // MOD_CONTROL
+                keys.Add(Keys.ControlKey);
+
+            if ((Modifier & MOD_SHIFT) != 0)
+                keys.Add(Keys.ShiftKey);
+
+            keys.Add(Hotkey);
+
+            return new HotkeyCombination(keys.ToArray());
+        }
+
+        public static void SaveHotkeyCombination(HotkeyCombination combo)
+        {
+            Modifier = 0;
+            Hotkey = Keys.None;
+
+            foreach (var key in combo.CombinationKeys)
             {
-                rk.SetValue(startupKey, $"\"{exePath}\"");
-            }
-            else
-            {
-                rk.DeleteValue(startupKey, false);
+                switch (key)
+                {
+                    case Keys.LWin:
+                    case Keys.RWin:
+                        Modifier |= MOD_WIN;
+                        break;
+                    case Keys.Menu:
+                        Modifier |= 0x0001;
+                        break;
+                    case Keys.ControlKey:
+                    case Keys.LControlKey:
+                    case Keys.RControlKey:
+                        Modifier |= 0x0002;
+                        break;
+                    case Keys.ShiftKey:
+                    case Keys.LShiftKey:
+                    case Keys.RShiftKey:
+                        Modifier |= MOD_SHIFT;
+                        break;
+                    default:
+                        Hotkey = key;
+                        break;
+                }
             }
 
-            rk.Dispose();
+            SaveSettings();
         }
     }
 }
