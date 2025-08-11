@@ -35,13 +35,7 @@
     <None Remove="LICENSE" />
     <None Remove="packages.config" />
     <None Remove="App.config" />
-    <None Remove="settings.json" />
     <None Remove="WinMicMuteChecker.iss" />
-  </ItemGroup>
-  <ItemGroup>
-    <Content Include="settings.json">
-      <CopyToOutputDirectory>Always</CopyToOutputDirectory>
-    </Content>
   </ItemGroup>
   <ItemGroup>
     <Content Include="mic.ico">
@@ -53,5 +47,10 @@
       <Generator>MSBuild:Compile</Generator>
       <SubType>Designer</SubType>
     </Page>
+  </ItemGroup>
+  <ItemGroup>
+    <None Update="settings.json">
+      <CopyToOutputDirectory>Never</CopyToOutputDirectory>
+    </None>
   </ItemGroup>
 </Project>
