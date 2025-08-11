@@ -6,28 +6,28 @@ using System.Windows.Forms;
 
 namespace WinMicMuteChecker
 {
-    public class LowLevelHotkeyManager
+    public class HotkeyManager
     {
-        private readonly Action action;
-        private IntPtr hookId = IntPtr.Zero;
+        private readonly Action _action;
+        private readonly IntPtr _hookId = IntPtr.Zero;
 
-        private HotkeyCombination hotkey;
+        private readonly HotkeyCombination _hotkey;
         private readonly HashSet<Keys> pressedKeys = [];
 
-        private readonly LowLevelKeyboardProc hookCallbackDelegate;
+        private readonly LowLevelKeyboardProc _callbackDelegate;
 
-        public LowLevelHotkeyManager(Action onHotkeyPressed, HotkeyCombination hotkey)
+        public HotkeyManager(Action action, HotkeyCombination hotkey)
         {
-            this.action = onHotkeyPressed;
-            this.hotkey = hotkey;
-            this.hookCallbackDelegate = HookCallback;
-            this.hookId = SetHook(hookCallbackDelegate);
+            _action = action;
+            _hotkey = hotkey;
+            _callbackDelegate = HookCallback;
+            _hookId = SetHook(_callbackDelegate);
 
         }
 
         public void Unregister()
         {
-            UnhookWindowsHookEx(hookId);
+            UnhookWindowsHookEx(_hookId);
         }
 
         private static IntPtr SetHook(LowLevelKeyboardProc proc)
@@ -55,32 +55,23 @@ namespace WinMicMuteChecker
                 else if (isKeyUp)
                     pressedKeys.Remove(normalized);
 
-                if (hotkey.IsMatch(pressedKeys))
+                if (_hotkey.IsMatch(pressedKeys))
                 {
-                    action?.Invoke();
+                    _action?.Invoke();
                     return (IntPtr)1;
                 }
             }
 
-            return CallNextHookEx(hookId, nCode, wParam, lParam);
+            return CallNextHookEx(_hookId, nCode, wParam, lParam);
         }
-        public void UpdateHotkey(HotkeyCombination newCombo)
-        {
-            UnhookWindowsHookEx(hookId);
-            this.hotkey = newCombo;
-            this.pressedKeys.Clear();
-            this.hookId = SetHook(hookCallbackDelegate);
-        }
+
         private static Keys NormalizeKey(Keys key)
         {
-            if (key == Keys.LShiftKey || key == Keys.RShiftKey)
-                return Keys.ShiftKey;
-            if (key == Keys.LControlKey || key == Keys.RControlKey)
-                return Keys.ControlKey;
-            if (key == Keys.LWin || key == Keys.RWin)
-                return Keys.LWin;
-            if (key == Keys.LMenu || key == Keys.RMenu)
-                return Keys.Menu;
+            if (key == Keys.LShiftKey || key == Keys.RShiftKey) return Keys.ShiftKey;
+            if (key == Keys.LControlKey || key == Keys.RControlKey) return Keys.ControlKey;
+            if (key == Keys.LWin || key == Keys.RWin) return Keys.LWin;
+            if (key == Keys.LMenu || key == Keys.RMenu) return Keys.Menu;
+
             return key;
         }
 

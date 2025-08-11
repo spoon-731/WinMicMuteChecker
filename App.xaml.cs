@@ -1,38 +1,38 @@
 ﻿using System;
-using System.Runtime.InteropServices;
 using System.Windows;
 
 namespace WinMicMuteChecker
 {
     public partial class App : Application
     {
-        private MicrophoneService? micService;
-        private LowLevelHotkeyManager? lowLevelHotkeyManager;
+        private OverlayWindow _overlayWindow;
+        private TrayManager _trayManager;
+        private MicrophoneService _microphoneService;
+        private HotkeyManager _hotkeyManager;
+
         protected override void OnStartup(StartupEventArgs e)
         {
             base.OnStartup(e);
 
-            // Carica impostazioni
             SettingsManager.LoadSettings();
 
-            // Crea overlay trasparente
-            var overlay = new OverlayWindow();
-            overlay.Show();
-            overlay.Hide();
+            _overlayWindow = new OverlayWindow();
 
-            // Avvia listener microfono
-            micService = new MicrophoneService(overlay);
+            // tray icon + menu
+            _trayManager = new TrayManager(_overlayWindow);
 
-            // Avvia listener hotkey toggle mute
-            lowLevelHotkeyManager = new LowLevelHotkeyManager(() => micService.ToggleMute(), SettingsManager.LoadHotkeyCombination());
+            // microphone listener
+            _microphoneService = new MicrophoneService(_overlayWindow);
 
-            // Avvia icona nel system tray
-            var trayManager = new TrayManager(overlay);
+            // hotkey listener
+            _hotkeyManager = new HotkeyManager(() => _microphoneService.ToggleMute(), SettingsManager.LoadHotkeyCombination());
         }
 
         protected override void OnExit(ExitEventArgs e)
         {
-            micService!.Dispose();
+            _trayManager.Dispose();
+            _microphoneService.Dispose();
+
             base.OnExit(e);
         }
     }

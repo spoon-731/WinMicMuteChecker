@@ -1,132 +1,122 @@
 ﻿using System;
+using System.Collections.Generic;
 using System.IO;
-using System.Text.Json;
+using System.Xml;
 using Keys = System.Windows.Forms.Keys;
 
 namespace WinMicMuteChecker
 {
-    public static class SettingsManager
+    internal class SettingsManager
     {
+        // define special Keys
         public const uint MOD_ALT = 0x0001;
         public const uint MOD_CONTROL = 0x0002;
         public const uint MOD_SHIFT = 0x0004;
         public const uint MOD_WIN = 0x0008;
 
+        // define settings
         public static string Color { get; set; } = "White";
+        public static double Opacity { get; set; } = 1;
         public static string Position { get; set; } = "Top";
-        public static double Opacity { get; set; } = 1; // 0..1
         public static uint Modifier { get; set; } = MOD_WIN | MOD_SHIFT;
         public static Keys Hotkey { get; set; } = Keys.A;
 
-        private static readonly string AppDir = Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.ApplicationData), "WinMicMuteChecker");
-        private static readonly string JsonPath = Path.Combine(AppDir, "settings.json");
+        // settins file path
+        private static readonly string configPath = Path.Combine(AppDomain.CurrentDomain.BaseDirectory, "Settings.config");
 
-        private class SettingsData
-        {
-            public string? Color { get; set; }
-            public string? Position { get; set; }
-            public double Opacity { get; set; }
-            public uint Modifier { get; set; }
-            public int Hotkey { get; set; }
-        }
-
+        // load settings from xml file
+        // - if it does not exists it generates it with default values
         public static void LoadSettings()
         {
+            if (!File.Exists(configPath))
+            {
+                SaveSettings(); // create file with default values
+                return;
+            }
+
             try
             {
-                Directory.CreateDirectory(AppDir);
+                XmlDocument doc = new();
+                doc.Load(configPath);
 
-                if (!File.Exists(JsonPath))
-                {
-                    SaveSettings();
-                    return;
-                }
+                XmlNode root = doc.SelectSingleNode("/settings");
 
-                var json = File.ReadAllText(JsonPath);
-                var data = JsonSerializer.Deserialize<SettingsData>(json);
-                if (data != null)
-                {
-                    if (!string.IsNullOrWhiteSpace(data.Color)) Color = data.Color!;
-                    if (!string.IsNullOrWhiteSpace(data.Position)) Position = data.Position!;
-                    if (data.Opacity > 0 && data.Opacity <= 1) Opacity = data.Opacity;
-                    if (data.Modifier != 0) Modifier = data.Modifier;
-                    if (data.Hotkey != 0) Hotkey = (Keys)data.Hotkey;
-                }
+                // Color
+                if (root["color"].InnerText != null)
+                    Color = root["color"].InnerText;
+
+                // Opacity
+                if (double.TryParse(root["opacity"].InnerText, out var parsedOpacity))
+                    Opacity = parsedOpacity;
+
+                // Position
+                if (root["position"].InnerText != null)
+                    Position = root["position"].InnerText;
+
+                // Modifier
+                if (uint.TryParse(root["modifier"].InnerText, out var parsedModifier))
+                    Modifier = parsedModifier;
+
+                // Hotkey
+                if (Enum.TryParse<Keys>(root["hotkey"].InnerText, out var parsedKey))
+                    Hotkey = parsedKey;
             }
-            catch
+            catch (Exception ex)
             {
-                SaveSettings();
+                // Fallback in case of error during load
+                Console.WriteLine("Errore nel caricamento delle impostazioni: " + ex.Message);
+                SaveSettings(); // reset default values
             }
         }
 
+        // saves settings in xml file
         public static void SaveSettings()
         {
             try
             {
-                Directory.CreateDirectory(AppDir);
-                var data = new SettingsData
-                {
-                    Color = Color,
-                    Position = Position,
-                    Opacity = Opacity,
-                    Modifier = Modifier,
-                    Hotkey = (int)Hotkey
-                };
+                XmlDocument doc = new();
 
-                JsonSerializerOptions jsonSerializerOptions = new() { WriteIndented = true };
-                JsonSerializerOptions options = jsonSerializerOptions;
-                var json = JsonSerializer.Serialize(
-                    data,
-                    options: options
-                );
+                XmlDeclaration xmlDeclaration = doc.CreateXmlDeclaration("1.0", "utf-8", null);
+                doc.AppendChild(xmlDeclaration);
 
-                File.WriteAllText(JsonPath, json);
+                XmlElement root = doc.CreateElement("settings");
+                doc.AppendChild(root);
+
+                root.AppendChild(CreateElement(doc, "color", Color));
+                root.AppendChild(CreateElement(doc, "opacity", Opacity.ToString()));
+                root.AppendChild(CreateElement(doc, "position", Position));
+                root.AppendChild(CreateElement(doc, "modifier", Modifier.ToString()));
+                root.AppendChild(CreateElement(doc, "hotkey", Hotkey.ToString()));
+
+                doc.Save(configPath);
             }
-            catch
+            catch (Exception ex)
             {
+                Console.WriteLine("Errore nel salvataggio delle impostazioni: " + ex.Message);
             }
         }
 
-        public static void SaveHotkeyCombination(HotkeyCombination combo)
+        // helper xml settings property
+        private static XmlElement CreateElement(XmlDocument doc, string name, string value)
         {
-            Modifier = 0;
-            foreach (var k in combo.CombinationKeys)
-            {
-                switch (k)
-                {
-                    case Keys.LWin:
-                    case Keys.RWin:
-                        Modifier |= MOD_WIN; break;
-
-                    case Keys.ControlKey:
-                        Modifier |= MOD_CONTROL; break;
-
-                    case Keys.Menu:
-                        Modifier |= MOD_ALT; break;
-
-                    case Keys.ShiftKey:
-                    case Keys.LShiftKey:
-                    case Keys.RShiftKey:
-                        Modifier |= MOD_SHIFT; break;
-
-                    default:
-                        Hotkey = k; break;
-                }
-            }
-
-            SaveSettings();
+            XmlElement element = doc.CreateElement(name);
+            element.InnerText = value;
+            return element;
         }
 
+        // Create HotkeyCombination from settings
         public static HotkeyCombination LoadHotkeyCombination()
         {
-            var list = new System.Collections.Generic.List<Keys>();
-            if ((Modifier & MOD_WIN) != 0) list.Add(Keys.LWin);
-            if ((Modifier & MOD_CONTROL) != 0) list.Add(Keys.ControlKey);
-            if ((Modifier & MOD_ALT) != 0) list.Add(Keys.Menu);
-            if ((Modifier & MOD_SHIFT) != 0) list.Add(Keys.ShiftKey);
+            var keys = new List<Keys>();
 
-            list.Add(Hotkey);
-            return new HotkeyCombination([.. list]);
+            if ((Modifier & MOD_WIN) != 0) keys.Add(Keys.LWin);
+            if ((Modifier & MOD_ALT) != 0) keys.Add(Keys.Menu);
+            if ((Modifier & MOD_CONTROL) != 0) keys.Add(Keys.ControlKey);
+            if ((Modifier & MOD_SHIFT) != 0) keys.Add(Keys.ShiftKey);
+
+            keys.Add(Hotkey);
+
+            return new HotkeyCombination([.. keys]);
         }
     }
 }

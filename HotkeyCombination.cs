@@ -10,8 +10,6 @@ namespace WinMicMuteChecker
     {
         public List<Keys> CombinationKeys { get; set; } = [.. keys];
 
-        public override string ToString() => string.Join(" + ", CombinationKeys);
-
         public bool IsMatch(HashSet<Keys> currentlyPressed)
         {
             var normalizedPressed = currentlyPressed.Select(NormalizeKey).ToHashSet();
@@ -22,14 +20,11 @@ namespace WinMicMuteChecker
 
         private Keys NormalizeKey(Keys key)
         {
-            if (key == Keys.LShiftKey || key == Keys.RShiftKey)
-                return Keys.ShiftKey;
-            if (key == Keys.LControlKey || key == Keys.RControlKey)
-                return Keys.ControlKey;
-            if (key == Keys.LWin || key == Keys.RWin)
-                return Keys.LWin;
-            if (key == Keys.LMenu || key == Keys.RMenu)
-                return Keys.Menu;
+            if (key == Keys.LShiftKey || key == Keys.RShiftKey) return Keys.ShiftKey;
+            if (key == Keys.LControlKey || key == Keys.RControlKey) return Keys.ControlKey;
+            if (key == Keys.LWin || key == Keys.RWin) return Keys.LWin;
+            if (key == Keys.LMenu || key == Keys.RMenu) return Keys.Menu;
+
             return key;
         }
     }

@@ -1,30 +1,41 @@
 ﻿using System;
 using System.Linq;
+using System.Runtime.InteropServices;
 using System.Windows;
 using System.Windows.Controls;
 using System.Windows.Media;
 
 namespace WinMicMuteChecker
 {
-    public partial class QuickPanel : UserControl
+    public partial class TrayWindow : Window
     {
-        private readonly OverlayWindow? _overlay;
+        private readonly OverlayWindow _overlay;
         private bool _initializing;
 
-        public QuickPanel(OverlayWindow overlay)
+        public TrayWindow(OverlayWindow overlay)
         {
             _initializing = true;
             InitializeComponent();
 
             _overlay = overlay;
+        }
+        protected override void OnSourceInitialized(EventArgs e)
+        {
+            base.OnSourceInitialized(e);
 
-            Loaded += (_, __) =>
-            {
-                OpacitySlider.Value = Math.Round(SettingsManager.Opacity * 100);
-                HighlightPosition(SettingsManager.Position);
-                HighlightColor(SettingsManager.Color);
-                _initializing = false;
-            };
+            var hwnd = new System.Windows.Interop.WindowInteropHelper(this).Handle;
+            int classStyle = GetClassLong(hwnd, GCL_STYLE);
+            SetClassLong(hwnd, GCL_STYLE, classStyle | CS_DROPSHADOW);
+        }
+
+        // on popup loaded
+        private void OnLoaded(object sender, RoutedEventArgs e)
+        {
+            OpacitySlider.Value = Math.Round(SettingsManager.Opacity * 100);
+            HighlightPosition(SettingsManager.Position);
+            HighlightColor(SettingsManager.Color);
+
+            _initializing = false;
         }
 
         private void HighlightPosition(string pos)
@@ -88,10 +99,19 @@ namespace WinMicMuteChecker
         {
             if (_initializing) return;
 
-            SettingsManager.Opacity = Math.Clamp(e.NewValue / 100.0, 0.1, 1.0);
+            SettingsManager.Opacity = e.NewValue / 100.0;
 
             SettingsManager.SaveSettings();
             _overlay?.UpdateOverlay();
         }
+
+        private const int GCL_STYLE = -26;
+        private const int CS_DROPSHADOW = 0x00020000;
+
+        [DllImport("user32.dll", SetLastError = true)]
+        static extern int GetClassLong(IntPtr hWnd, int nIndex);
+
+        [DllImport("user32.dll")]
+        static extern int SetClassLong(IntPtr hWnd, int nIndex, int dwNewLong);
     }
 }
