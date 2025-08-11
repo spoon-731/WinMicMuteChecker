@@ -11,11 +11,8 @@ namespace WinMicMuteChecker
         private readonly Action action;
         private IntPtr hookId = IntPtr.Zero;
 
-        private bool winPressed = false;
-        private bool shiftPressed = false;
-
         private HotkeyCombination hotkey;
-        private readonly HashSet<Keys> pressedKeys = new HashSet<Keys>();
+        private readonly HashSet<Keys> pressedKeys = [];
 
         private readonly LowLevelKeyboardProc hookCallbackDelegate;
 
@@ -33,12 +30,11 @@ namespace WinMicMuteChecker
             UnhookWindowsHookEx(hookId);
         }
 
-        private IntPtr SetHook(LowLevelKeyboardProc proc)
+        private static IntPtr SetHook(LowLevelKeyboardProc proc)
         {
             Process curProcess = Process.GetCurrentProcess();
-            ProcessModule curModule = curProcess.MainModule;
 
-            return SetWindowsHookEx(WH_KEYBOARD_LL, proc, GetModuleHandle(curModule.ModuleName), 0);
+            return SetWindowsHookEx(WH_KEYBOARD_LL, proc, GetModuleHandle(curProcess.MainModule!.ModuleName), 0);
         }
 
         private delegate IntPtr LowLevelKeyboardProc(int nCode, IntPtr wParam, IntPtr lParam);
@@ -75,7 +71,7 @@ namespace WinMicMuteChecker
             this.pressedKeys.Clear();
             this.hookId = SetHook(hookCallbackDelegate);
         }
-        private Keys NormalizeKey(Keys key)
+        private static Keys NormalizeKey(Keys key)
         {
             if (key == Keys.LShiftKey || key == Keys.RShiftKey)
                 return Keys.ShiftKey;
@@ -105,7 +101,7 @@ namespace WinMicMuteChecker
         [DllImport("user32.dll")]
         private static extern IntPtr CallNextHookEx(IntPtr hhk, int nCode, IntPtr wParam, IntPtr lParam);
 
-        [DllImport("kernel32.dll", CharSet = CharSet.Auto, SetLastError = true)]
+        [DllImport("kernel32.dll", CharSet = CharSet.Unicode, SetLastError = true)]
         private static extern IntPtr GetModuleHandle(string lpModuleName);
     }
 }

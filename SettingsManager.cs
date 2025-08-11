@@ -1,62 +1,61 @@
-﻿using Microsoft.Win32;
-using System;
-using System.Collections.Generic;
-using System.Globalization;
+﻿using System;
 using System.IO;
-using System.Xml;
+using System.Text.Json;
 using Keys = System.Windows.Forms.Keys;
 
 namespace WinMicMuteChecker
 {
     public static class SettingsManager
     {
+        public const uint MOD_ALT = 0x0001;
+        public const uint MOD_CONTROL = 0x0002;
         public const uint MOD_SHIFT = 0x0004;
         public const uint MOD_WIN = 0x0008;
 
         public static string Color { get; set; } = "White";
-        public static string Position { get; set; } = "TopLeft";
-        public static double Opacity { get; set; } = 1.0;
+        public static string Position { get; set; } = "Top";
+        public static double Opacity { get; set; } = 1; // 0..1
+        public static uint Modifier { get; set; } = MOD_WIN | MOD_SHIFT;
         public static Keys Hotkey { get; set; } = Keys.A;
-        public static uint Modifier { get; set; } = MOD_SHIFT | MOD_WIN;
-        public static bool RunAtStartup { get; set; } = false;
 
-        private static readonly string configPath = Path.Combine(AppDomain.CurrentDomain.BaseDirectory, "Settings.config");
-        private static readonly string startupKey = "WinMicMuteChecker";
+        private static readonly string AppDir = Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.ApplicationData), "WinMicMuteChecker");
+        private static readonly string JsonPath = Path.Combine(AppDir, "settings.json");
+
+        private class SettingsData
+        {
+            public string? Color { get; set; }
+            public string? Position { get; set; }
+            public double Opacity { get; set; }
+            public uint Modifier { get; set; }
+            public int Hotkey { get; set; }
+        }
 
         public static void LoadSettings()
         {
-            if (!File.Exists(configPath))
-            {
-                SaveSettings(); // crea il file se non esiste
-                return;
-            }
-
             try
             {
-                XmlDocument doc = new XmlDocument();
-                doc.Load(configPath);
+                Directory.CreateDirectory(AppDir);
 
-                XmlNode root = doc.SelectSingleNode("/settings");
+                if (!File.Exists(JsonPath))
+                {
+                    SaveSettings();
+                    return;
+                }
 
-                Color = root["color"]?.InnerText ?? "White";
-                Position = root["position"]?.InnerText ?? "TopLeft";
-
-                if (double.TryParse(root["opacity"]?.InnerText, out var op))
-                    Opacity = op;
-
-                if (Enum.TryParse<Keys>(root["hotkey"]?.InnerText, out var key))
-                    Hotkey = key;
-
-                if (uint.TryParse(root["modifier"]?.InnerText, out var mod))
-                    Modifier = mod;
-
-                RunAtStartup = root["runatstartup"]?.InnerText.Equals("True", StringComparison.OrdinalIgnoreCase) ?? false;
+                var json = File.ReadAllText(JsonPath);
+                var data = JsonSerializer.Deserialize<SettingsData>(json);
+                if (data != null)
+                {
+                    if (!string.IsNullOrWhiteSpace(data.Color)) Color = data.Color!;
+                    if (!string.IsNullOrWhiteSpace(data.Position)) Position = data.Position!;
+                    if (data.Opacity > 0 && data.Opacity <= 1) Opacity = data.Opacity;
+                    if (data.Modifier != 0) Modifier = data.Modifier;
+                    if (data.Hotkey != 0) Hotkey = (Keys)data.Hotkey;
+                }
             }
-            catch (Exception ex)
+            catch
             {
-                // Fallback in caso di errore XML
-                Console.WriteLine("Errore nel caricamento delle impostazioni: " + ex.Message);
-                SaveSettings(); // ripristina valori predefiniti
+                SaveSettings();
             }
         }
 
@@ -64,90 +63,70 @@ namespace WinMicMuteChecker
         {
             try
             {
-                XmlDocument doc = new XmlDocument();
+                Directory.CreateDirectory(AppDir);
+                var data = new SettingsData
+                {
+                    Color = Color,
+                    Position = Position,
+                    Opacity = Opacity,
+                    Modifier = Modifier,
+                    Hotkey = (int)Hotkey
+                };
 
-                XmlDeclaration xmlDeclaration = doc.CreateXmlDeclaration("1.0", "utf-8", null);
-                doc.AppendChild(xmlDeclaration);
+                JsonSerializerOptions jsonSerializerOptions = new() { WriteIndented = true };
+                JsonSerializerOptions options = jsonSerializerOptions;
+                var json = JsonSerializer.Serialize(
+                    data,
+                    options: options
+                );
 
-                XmlElement root = doc.CreateElement("settings");
-                doc.AppendChild(root);
-
-                root.AppendChild(CreateElement(doc, "color", Color));
-                root.AppendChild(CreateElement(doc, "position", Position));
-                root.AppendChild(CreateElement(doc, "opacity", Opacity.ToString()));
-                root.AppendChild(CreateElement(doc, "hotkey", Hotkey.ToString()));
-                root.AppendChild(CreateElement(doc, "modifier", Modifier.ToString()));
-                root.AppendChild(CreateElement(doc, "runatstartup", RunAtStartup.ToString()));
-
-                doc.Save(configPath);
+                File.WriteAllText(JsonPath, json);
             }
-            catch (Exception ex)
+            catch
             {
-                Console.WriteLine("Errore nel salvataggio delle impostazioni: " + ex.Message);
             }
-        }
-
-        private static XmlElement CreateElement(XmlDocument doc, string name, string value)
-        {
-            XmlElement element = doc.CreateElement(name);
-            element.InnerText = value;
-            return element;
-        }
-
-        public static HotkeyCombination LoadHotkeyCombination()
-        {
-            var keys = new List<Keys>();
-
-            if ((Modifier & MOD_WIN) != 0)
-                keys.Add(Keys.LWin);
-
-            if ((Modifier & 0x0001) != 0) // MOD_ALT
-                keys.Add(Keys.Menu); // Alt
-
-            if ((Modifier & 0x0002) != 0) // MOD_CONTROL
-                keys.Add(Keys.ControlKey);
-
-            if ((Modifier & MOD_SHIFT) != 0)
-                keys.Add(Keys.ShiftKey);
-
-            keys.Add(Hotkey);
-
-            return new HotkeyCombination(keys.ToArray());
         }
 
         public static void SaveHotkeyCombination(HotkeyCombination combo)
         {
             Modifier = 0;
-            Hotkey = Keys.None;
-
-            foreach (var key in combo.CombinationKeys)
+            foreach (var k in combo.CombinationKeys)
             {
-                switch (key)
+                switch (k)
                 {
                     case Keys.LWin:
                     case Keys.RWin:
-                        Modifier |= MOD_WIN;
-                        break;
-                    case Keys.Menu:
-                        Modifier |= 0x0001;
-                        break;
+                        Modifier |= MOD_WIN; break;
+
                     case Keys.ControlKey:
-                    case Keys.LControlKey:
-                    case Keys.RControlKey:
-                        Modifier |= 0x0002;
-                        break;
+                        Modifier |= MOD_CONTROL; break;
+
+                    case Keys.Menu:
+                        Modifier |= MOD_ALT; break;
+
                     case Keys.ShiftKey:
                     case Keys.LShiftKey:
                     case Keys.RShiftKey:
-                        Modifier |= MOD_SHIFT;
-                        break;
+                        Modifier |= MOD_SHIFT; break;
+
                     default:
-                        Hotkey = key;
-                        break;
+                        Hotkey = k; break;
                 }
             }
 
             SaveSettings();
+        }
+
+        public static HotkeyCombination LoadHotkeyCombination()
+        {
+            var list = new System.Collections.Generic.List<Keys>();
+            if ((Modifier & MOD_WIN) != 0) list.Add(Keys.LWin);
+            if ((Modifier & MOD_CONTROL) != 0) list.Add(Keys.ControlKey);
+            if ((Modifier & MOD_ALT) != 0) list.Add(Keys.Menu);
+            if ((Modifier & MOD_SHIFT) != 0) list.Add(Keys.ShiftKey);
+
+            list.Add(Hotkey);
+            return new HotkeyCombination([.. list]);
         }
     }
 }

@@ -6,19 +6,11 @@ using System.Windows.Forms;
 namespace WinMicMuteChecker
 {
     [Serializable]
-    public class HotkeyCombination
+    public class HotkeyCombination(params Keys[] keys)
     {
-        public List<Keys> CombinationKeys { get; set; } = new List<Keys>();
+        public List<Keys> CombinationKeys { get; set; } = [.. keys];
 
-        public HotkeyCombination(params Keys[] keys)
-        {
-            CombinationKeys = keys.ToList();
-        }
-
-        public override string ToString()
-        {
-            return string.Join(" + ", CombinationKeys);
-        }
+        public override string ToString() => string.Join(" + ", CombinationKeys);
 
         public bool IsMatch(HashSet<Keys> currentlyPressed)
         {
