@@ -124,6 +124,7 @@
     <Compile Include="HotkeyCombination.cs" />
     <Compile Include="HotkeyManager.cs" />
     <Compile Include="MicrophoneService.cs" />
+    <Compile Include="OverlayAnimator.cs" />
     <Compile Include="TrayWindow.xaml.cs">
       <DependentUpon>TrayWindow.xaml</DependentUpon>
     </Compile>

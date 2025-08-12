@@ -1,6 +1,7 @@
 ﻿using NAudio.CoreAudioApi;
 using NAudio.CoreAudioApi.Interfaces;
 using System;
+using System.Threading.Tasks;
 using System.Windows;
 
 namespace WinMicMuteChecker
@@ -8,18 +9,22 @@ namespace WinMicMuteChecker
     public class MicrophoneService : IDisposable, IMMNotificationClient
     {
         private MMDevice _microphone;
-        private readonly OverlayWindow _overlay;
         private readonly MMDeviceEnumerator _deviceEnumerator;
+        private readonly OverlayAnimator _overlayAnimator;
 
-        public MicrophoneService(OverlayWindow overlayWindow)
+        private bool _callbackRegistered;
+        private bool? _lastMuted;
+
+        public MicrophoneService(OverlayAnimator overlayAnimator)
         {
-            _overlay = overlayWindow;
+            _overlayAnimator = overlayAnimator;
 
             _deviceEnumerator = new MMDeviceEnumerator();
             BindToDefaultMic();
             if (_microphone != null)
             {
                 _deviceEnumerator.RegisterEndpointNotificationCallback(this);
+                _callbackRegistered = true;
             }
         }
 
@@ -27,31 +32,34 @@ namespace WinMicMuteChecker
         {
             Unsubscribe();
             _microphone?.Dispose();
+            _microphone = _deviceEnumerator.GetDefaultAudioEndpoint(DataFlow.Capture, Role.Communications);
+            
+            _microphone ??= _deviceEnumerator.GetDefaultAudioEndpoint(DataFlow.Capture, Role.Multimedia);
 
-            _microphone = _deviceEnumerator.GetDefaultAudioEndpoint(DataFlow.Capture, Role.Multimedia);
             if (_microphone != null)
             {
                 Console.WriteLine(_microphone);
                 _microphone.AudioEndpointVolume.OnVolumeNotification += VolumeChanged;
-                UpdateOverlay();
+                _ = UpdateOverlay();
             }
         }
-
         private void VolumeChanged(AudioVolumeNotificationData data)
         {
-            Application.Current.Dispatcher.Invoke(UpdateOverlay);
+            Application.Current.Dispatcher.BeginInvoke(async () => await UpdateOverlay());
         }
 
-        private void UpdateOverlay()
+        private Task UpdateOverlay()
         {
-            if (_microphone.AudioEndpointVolume.Mute)
-            {
-                _overlay.ShowOverlay();
-            }
-            else
-            {
-                _overlay.HideOverlay();
-            }
+            if (_microphone == null) return Task.CompletedTask;
+
+            bool muted;
+            try { muted = _microphone.AudioEndpointVolume?.Mute ?? false; }
+            catch { return Task.CompletedTask; }
+
+            if (_lastMuted == muted) return Task.CompletedTask;
+            _lastMuted = muted;
+
+            return _overlayAnimator.SetVisibleAsync(muted);
         }
 
         public void ToggleMute()
@@ -84,10 +92,15 @@ namespace WinMicMuteChecker
             {
                 Unsubscribe();
                 _microphone?.Dispose();
-                _deviceEnumerator?.UnregisterEndpointNotificationCallback(this);
+                if (_callbackRegistered)
+                {
+                    _deviceEnumerator.UnregisterEndpointNotificationCallback(this);
+                    _callbackRegistered = false;
+                }
                 _deviceEnumerator?.Dispose();
             }
         }
+
         public void OnDefaultDeviceChanged(DataFlow flow, Role role, string defaultDeviceId)
         {
             if (flow == DataFlow.Capture && role == Role.Multimedia)

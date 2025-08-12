@@ -75,6 +75,11 @@ namespace WinMicMuteChecker
             return key;
         }
 
+        public void Dispose()
+        {
+            Unregister();
+        }
+
         // Costanti e P/Invoke
         private const int WH_KEYBOARD_LL = 13;
         private const int WM_KEYDOWN = 0x0100;
