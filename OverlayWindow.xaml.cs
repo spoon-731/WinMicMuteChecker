@@ -34,10 +34,24 @@ namespace WinMicMuteChecker
     public partial class OverlayWindow : Window
     {
         private const double margin = 10;
+        private const int WM_DPICHANGED = 0x02E0;
 
         public OverlayWindow()
         {
             InitializeComponent();
+
+            // Se non hai già legato OnLoaded da XAML, scommenta:
+            // Loaded += OnLoaded;
+
+            // Hook al WndProc per intercettare WM_DPICHANGED
+            SourceInitialized += (_, __) =>
+            {
+                var src = (HwndSource)PresentationSource.FromVisual(this);
+                src.AddHook(WndProc);
+            };
+
+            // Se l'overlay cambia size dinamicamente, riposiziona
+            SizeChanged += (_, __) => UpdatePosition();
         }
 
         // on overlay loaded - set properties
@@ -50,7 +64,7 @@ namespace WinMicMuteChecker
             exStyle |= NativeMethods.WS_EX_TRANSPARENT | NativeMethods.WS_EX_TOOLWINDOW | NativeMethods.WS_EX_LAYERED;
             NativeMethods.SetWindowLongPtr(hwnd, NativeMethods.GWL_EXSTYLE, new IntPtr(exStyle));
 
-            UpdateOverlay();
+            UpdateOverlay(); // imposta colore, posizionamento e opacità
         }
 
         public void ShowOverlay()
@@ -98,75 +112,116 @@ namespace WinMicMuteChecker
             // set color
             overlayIcon.Fill = GetBrushFromName(SettingsManager.Color);
 
-            // set position
+            // set position (DPI-aware)
             UpdatePosition();
 
-            // Valore base (non animato)
+            // reset animazioni pendenti e imposta opacità base
             this.BeginAnimation(Window.OpacityProperty, null);
-            // set opacity
             overlayWindow.Opacity = SettingsManager.Opacity;
         }
 
+        /// <summary>
+        /// Calcola la working area del monitor che ospita la finestra in PIXEL
+        /// e la converte in DIPs usando la scala corrente del monitor (per-monitor DPI).
+        /// Poi posiziona l'overlay in DIPs.
+        /// </summary>
         private void UpdatePosition()
         {
-            Rectangle screenArea = Screen.PrimaryScreen.WorkingArea;
-            double screenW = screenArea.Width;
-            double screenH = screenArea.Height;
-            double offsetX = screenArea.Left;
-            double offsetY = screenArea.Top;
+            var hwnd = new WindowInteropHelper(this).Handle;
 
-            double overlayW = overlayWindow.Width;
-            double overlayH = overlayWindow.Height;
+            // 1) Working area del monitor CORRENTE (in pixel)
+            // Screen screen = hwnd != IntPtr.Zero ? Screen.FromHandle(hwnd) : Screen.FromPoint(Cursor.Position);
+            Screen screen = Screen.PrimaryScreen;
+            Rectangle waPx = screen.WorkingArea;
 
-            double left;
-            double top;
+            // 2) Ottieni scala DIPs->pixel del monitor che ospita la window
+            double scaleX = 1.0, scaleY = 1.0;
+            var src = PresentationSource.FromVisual(this);
+            if (src?.CompositionTarget != null)
+            {
+                scaleX = src.CompositionTarget.TransformToDevice.M11;
+                scaleY = src.CompositionTarget.TransformToDevice.M22;
+            }
+            else
+            {
+                var dpi = VisualTreeHelper.GetDpi(this);
+                scaleX = dpi.DpiScaleX;
+                scaleY = dpi.DpiScaleY;
+            }
+
+            // 3) Converte working area da pixel -> DIPs
+            double waLeftDip = waPx.Left / scaleX;
+            double waTopDip = waPx.Top / scaleY;
+            double waWidthDip = waPx.Width / scaleX;
+            double waHeightDip = waPx.Height / scaleY;
+
+            // 4) Dimensioni dell'overlay in DIPs (preferisci Actual* se disponibili)
+            double overlayW = overlayWindow.ActualWidth > 0 ? overlayWindow.ActualWidth : overlayWindow.Width;
+            double overlayH = overlayWindow.ActualHeight > 0 ? overlayWindow.ActualHeight : overlayWindow.Height;
+
+            double left, top;
 
             switch (SettingsManager.Position)
             {
                 case "TopLeft":
-                    left = offsetX + margin;
-                    top = offsetY + margin;
+                    left = waLeftDip + margin;
+                    top = waTopDip + margin;
                     break;
                 case "Top":
-                    left = offsetX + (screenW - overlayW) / 2;
-                    top = offsetY + margin;
+                    left = waLeftDip + (waWidthDip - overlayW) / 2;
+                    top = waTopDip + margin;
                     break;
                 case "TopRight":
-                    left = offsetX + screenW - overlayW - margin;
-                    top = offsetY + margin;
+                    left = waLeftDip + waWidthDip - overlayW - margin;
+                    top = waTopDip + margin;
                     break;
                 case "Right":
-                    left = offsetX + screenW - overlayW - margin;
-                    top = offsetY + (screenH - overlayH) / 2;
+                    left = waLeftDip + waWidthDip - overlayW - margin;
+                    top = waTopDip + (waHeightDip - overlayH) / 2;
                     break;
                 case "BottomRight":
-                    left = offsetX + screenW - overlayW - margin;
-                    top = offsetY + screenH - overlayH - margin;
+                    left = waLeftDip + waWidthDip - overlayW - margin;
+                    top = waTopDip + waHeightDip - overlayH - margin;
                     break;
                 case "Bottom":
-                    left = offsetX + (screenW - overlayW) / 2;
-                    top = offsetY + screenH - overlayH - margin;
+                    left = waLeftDip + (waWidthDip - overlayW) / 2;
+                    top = waTopDip + waHeightDip - overlayH - margin;
                     break;
                 case "BottomLeft":
-                    left = offsetX + margin;
-                    top = offsetY + screenH - overlayH - margin;
+                    left = waLeftDip + margin;
+                    top = waTopDip + waHeightDip - overlayH - margin;
                     break;
                 case "Left":
-                    left = offsetX + margin;
-                    top = offsetY + (screenH - overlayH) / 2;
+                    left = waLeftDip + margin;
+                    top = waTopDip + (waHeightDip - overlayH) / 2;
                     break;
                 case "Center":
-                    left = offsetX + (screenW - overlayW) / 2;
-                    top = offsetY + (screenH - overlayH) / 2;
+                    left = waLeftDip + (waWidthDip - overlayW) / 2;
+                    top = waTopDip + (waHeightDip - overlayH) / 2;
                     break;
                 default:
-                    left = offsetX + (screenW - overlayW) / 2;
-                    top = offsetY + (screenH - overlayH) / 2;
+                    left = waLeftDip + (waWidthDip - overlayW) / 2;
+                    top = waTopDip + (waHeightDip - overlayH) / 2;
                     break;
             }
 
+            // 5) Clamp per sicurezza
+            left = Math.Max(waLeftDip + margin, Math.Min(left, waLeftDip + waWidthDip - overlayW - margin));
+            top = Math.Max(waTopDip + margin, Math.Min(top, waTopDip + waHeightDip - overlayH - margin));
+
             overlayWindow.Left = left;
             overlayWindow.Top = top;
+        }
+
+        private IntPtr WndProc(IntPtr hwnd, int msg, IntPtr wParam, IntPtr lParam, ref bool handled)
+        {
+            if (msg == WM_DPICHANGED)
+            {
+                // La scala del monitor è cambiata o la finestra è stata spostata su monitor con DPI diverso
+                UpdatePosition();
+                // handled = false -> lascia a WPF eventuale gestione aggiuntiva
+            }
+            return IntPtr.Zero;
         }
 
         private Brush GetBrushFromName(string color)

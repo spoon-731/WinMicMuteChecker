@@ -6,6 +6,8 @@
         xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
         xmlns:local="clr-namespace:WinMicMuteChecker"
         mc:Ignorable="d"
+        UseLayoutRounding="True"
+        SnapsToDevicePixels="True"
 
         AllowsTransparency="True"
         Background="Transparent"
