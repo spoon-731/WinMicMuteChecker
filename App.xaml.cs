@@ -19,6 +19,8 @@ namespace WinMicMuteChecker
             SettingsManager.LoadSettings();
 
             _overlayWindow = new OverlayWindow();
+            _overlayWindow.Show();
+            _overlayWindow.Hide();
 
             // overlay animator
             _overlayAnimator = new OverlayAnimator(_overlayWindow);
