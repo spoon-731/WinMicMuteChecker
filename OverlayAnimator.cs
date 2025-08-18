@@ -53,7 +53,7 @@ namespace WinMicMuteChecker
                 var fadeIn = new DoubleAnimation
                 {
                     From = _overlay.Opacity,
-                    To = 1.0,
+                    To = SettingsManager.Opacity,
                     Duration = FadeIn,
                     EasingFunction = new QuadraticEase { EasingMode = EasingMode.EaseOut }
                 };
