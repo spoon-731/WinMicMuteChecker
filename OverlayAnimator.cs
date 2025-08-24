@@ -15,8 +15,8 @@ namespace WinMicMuteChecker
 
         // tuning
         private static readonly TimeSpan Debounce = TimeSpan.FromMilliseconds(120);
-        private static readonly Duration FadeIn = new(TimeSpan.FromMilliseconds(160));
-        private static readonly Duration FadeOut = new(TimeSpan.FromMilliseconds(160));
+        private static readonly Duration FadeIn = new(TimeSpan.FromMilliseconds(250));
+        private static readonly Duration FadeOut = new(TimeSpan.FromMilliseconds(250));
 
         public OverlayAnimator(Window overlay)
         {
@@ -40,7 +40,9 @@ namespace WinMicMuteChecker
             if (token.IsCancellationRequested) return;
 
             // 2) Stop previous animation
+            var current = _overlay.Opacity;
             _overlay.BeginAnimation(UIElement.OpacityProperty, null, HandoffBehavior.SnapshotAndReplace);
+            _overlay.Opacity = current;
 
             if (visible)
             {
